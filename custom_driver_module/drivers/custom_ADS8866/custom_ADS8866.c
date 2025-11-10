@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2024 (Seu Nome/Sua Empresa Aqui)
- * Copyright (c) 2023 Google, LLC (estrutura baseada no ads7052)
+ * Copyright (c) 2024 (Your Name/Your Company Here)
+ * Copyright (c) 2023 Google, LLC (based on ads7052 structure)
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* O 'compatible' deve bater com o binding e o overlay */
+/* The 'compatible' must match the binding and the overlay */
 #define DT_DRV_COMPAT ti_custom_ads8866
 
 #include <zephyr/device.h>
@@ -22,64 +22,94 @@ LOG_MODULE_REGISTER(custom_ads8866);
 
 #define ADS8866_RESOLUTION 16U
 
-/* Configuração do driver (lida do devicetree) */
+/**
+ * @brief Driver configuration data (read-only, from devicetree).
+ */
 struct ads8866_config {
+    /** SPI bus specification from devicetree */
     struct spi_dt_spec bus;
+    /** Number of channels (always 1 for ADS8866) */
     uint8_t channels;
+    /** GPIO specification for the CONVST (Conversion Start) pin */
 	struct gpio_dt_spec convst;
 };
 
-/* Dados de instância do driver */
+/**
+ * @brief Driver instance data (per-device, runtime state).
+ */
 struct ads8866_data {
+    /** ADC context for asynchronous operations */
 	struct adc_context ctx;
+    /** Pointer to the device structure */
 	const struct device *dev;
+    /** Pointer to the current sample buffer */
 	uint16_t *buffer;
+    /** Pointer to the buffer for repeated sampling */
 	uint16_t *repeat_buffer;
+    /** Bitmask of channels to be sampled */
 	uint8_t channels;
+    /** Acquisition thread for handling sampling */
 	struct k_thread thread;
+    /** Semaphore to signal the acquisition thread */
 	struct k_sem sem;
 
-	/* Define um stack para a thread de aquisição */	
+	/** Stack definition for the acquisition thread */	
 	K_KERNEL_STACK_MEMBER(stack, CONFIG_ADC_ADS8866_ACQUISITION_THREAD_STACK_SIZE);
 };
 
+/**
+ * @brief Implementation of the ADC API 'channel_setup' function.
+ *
+ * @param dev Pointer to the ADC device instance.
+ * @param channel_cfg Pointer to the channel configuration.
+ *
+ * @return 0 on success.
+ * @return -ENOTSUP if the configuration is not supported (invalid gain,
+ * channel ID, or acquisition time).
+ */
 static int adc_ads8866_channel_setup(const struct device *dev,
 				     const struct adc_channel_cfg *channel_cfg)
 {
 	const struct ads8866_config *config = dev->config;
 
-	/* O ADS8866 tem ganho fixo */
+	/* The ADS8866 has a fixed gain */
 	if (channel_cfg->gain != ADC_GAIN_1) {
-		LOG_ERR("Ganho %d não suportado.", channel_cfg->gain);
+		LOG_ERR("Gain %d not supported.", channel_cfg->gain);
 		return -ENOTSUP;
 	}
 	
-
-	/* O ADS8866 é um ADC de canal único (Canal 0) */
+	/* The ADS8866 is a single-channel ADC (Channel 0) */
 	if (channel_cfg->channel_id >= config->channels) {
-		LOG_ERR("Canal inválido %d. O ADS8866 só suporta o canal 0.", 
+		LOG_ERR("Invalid channel %d. The ADS8866 only supports channel 0.", 
 			channel_cfg->channel_id);
 		return -ENOTSUP;
 	}
 
-	/* O ADS8866 não tem tempo de aquisição configurável via software */
+	/* The ADS8866 does not have a software-configurable acquisition time */
 	if (channel_cfg->acquisition_time != ADC_ACQ_TIME_DEFAULT) {
-		LOG_ERR("Tempo de aquisição %d não suportado.",
+		LOG_ERR("Acquisition time %d not supported.",
 			channel_cfg->acquisition_time);
 		return -ENOTSUP;
 	}	
 
-	
-
-	/* A referência é definida pelo 'vref-mv' no devicetree */
+	/* The reference is defined by 'vref-mv' in the devicetree */
 	if (channel_cfg->reference != ADC_REF_EXTERNAL0 &&
 	    channel_cfg->reference != ADC_REF_VDD_1) {
-		LOG_WRN("Referência ignorada. Use 'vref-mv' no overlay.");
+		LOG_WRN("Reference ignored. Use 'vref-mv' in the overlay.");
 	}
 
 	return 0;
 }
 
+/**
+ * @brief Validates if the sequence buffer is large enough.
+ *
+ * @param dev Pointer to the ADC device instance.
+ * @param sequence Pointer to the ADC sequence configuration.
+ *
+ * @return 0 on success.
+ * @return -ENOMEM if the buffer is too small.
+ */
 static int ads8866_validate_buffer_size(const struct device *dev,
 					const struct adc_sequence *sequence)
 {
@@ -100,6 +130,14 @@ static int ads8866_validate_buffer_size(const struct device *dev,
 	return 0;
 }
 
+/**
+ * @brief Internal function to configure and start a read sequence.
+ *
+ * @param dev Pointer to the ADC device instance.
+ * @param sequence Pointer to the ADC sequence configuration.
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
 static int ads8866_start_read(const struct device *dev, const struct adc_sequence *sequence)
 {
 	const struct ads8866_config *config = dev->config;
@@ -107,11 +145,11 @@ static int ads8866_start_read(const struct device *dev, const struct adc_sequenc
 	int err;	
 
 	if (sequence->resolution != ADS8866_RESOLUTION) {
-		LOG_ERR("Resolução %d não suportada. Use %d.", sequence->resolution, ADS8866_RESOLUTION);
+		LOG_ERR("Resolution %d not supported. Use %d.", sequence->resolution, ADS8866_RESOLUTION);
 		return -ENOTSUP;
 	}
 
-	/* O ADS8866 só tem o canal 0 */
+	/* The ADS8866 only has channel 0 */
 	if (find_msb_set(sequence->channels) > config->channels) {
 		LOG_ERR("unsupported channels in mask: 0x%08x", sequence->channels);
 		return -ENOTSUP;
@@ -119,7 +157,7 @@ static int ads8866_start_read(const struct device *dev, const struct adc_sequenc
 
 	err = ads8866_validate_buffer_size(dev, sequence);
 	if (err) {
-		LOG_ERR("Tamanho do buffer muito pequeno.");
+		LOG_ERR("Buffer size too small.");
 		return err;
 	}
 
@@ -129,6 +167,15 @@ static int ads8866_start_read(const struct device *dev, const struct adc_sequenc
 	return adc_context_wait_for_completion(&data->ctx);
 }
 
+/**
+ * @brief Implementation of the ADC API 'read_async' function.
+ *
+ * @param dev Pointer to the ADC device instance.
+ * @param sequence Pointer to the ADC sequence configuration.
+ * @param async Pointer to a poll signal for async notification (can be NULL).
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
 static int adc_ads8866_read_async(const struct device *dev, 
 	const struct adc_sequence *sequence,
 				  struct k_poll_signal *async)
@@ -143,12 +190,29 @@ static int adc_ads8866_read_async(const struct device *dev,
 	return error;
 }
 
+/**
+ * @brief Implementation of the ADC API 'read' (blocking) function.
+ *
+ * @param dev Pointer to the ADC device instance.
+ * @param sequence Pointer to the ADC sequence configuration.
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
 static int adc_ads8866_read(const struct device *dev, 
 	const struct adc_sequence *sequence)
 {
+	/* This is just a blocking wrapper for the async read function */
 	return adc_ads8866_read_async(dev, sequence, NULL);
 }
 
+/**
+ * @brief Callback from adc_context to start the sampling.
+ *
+ * This function is called by the adc_context helper when a read is initiated.
+ * It signals the acquisition thread to perform the actual read.
+ *
+ * @param ctx Pointer to the ADC context.
+ */
 static void adc_context_start_sampling(struct adc_context *ctx)
 {
 	struct ads8866_data *data = CONTAINER_OF(ctx, struct ads8866_data, ctx);
@@ -156,9 +220,16 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 	data->channels = ctx->sequence.channels;
 	data->repeat_buffer = data->buffer;
 
+	/* Give the semaphore to wake up the acquisition thread */
 	k_sem_give(&data->sem);
 }
 
+/**
+ * @brief Callback from adc_context to update the buffer pointer.
+ *
+ * @param ctx Pointer to the ADC context.
+ * @param repeat_sampling True if this is a repeated sampling.
+ */
 static void adc_context_update_buffer_pointer(struct adc_context *ctx, 
 	bool repeat_sampling)
 {
@@ -170,8 +241,18 @@ static void adc_context_update_buffer_pointer(struct adc_context *ctx,
 }
 
 /**
- * @brief Inicia a conversão e lê uma amostra de 16 bits do ADC.
- * (Modificado para incluir a lógica do pino CONVST)
+ * @brief Starts the conversion and reads one 16-bit sample from the ADC.
+ *
+ * This function handles the specific hardware signaling for the ADS8866:
+ * 1. Pulses CONVST high to start conversion.
+ * 2. Waits for conversion time.
+ * 3. Pulls CONVST low.
+ * 4. Reads the 16-bit result from SPI.
+ *
+ * @param dev Pointer to the ADC device instance.
+ * @param result Pointer to a uint16_t to store the read sample.
+ *
+ * @return 0 on success, or a negative SPI error code.
  */
 static int ads8866_read_channel(const struct device *dev, uint16_t *result)
 {
@@ -179,33 +260,33 @@ static int ads8866_read_channel(const struct device *dev, uint16_t *result)
     int err;
 
     /*
-     * PASSO 1: Pulsar o pino CONVST para iniciar a conversão
-     * O pino foi configurado como GPIO_OUTPUT_INACTIVE (LOW) no init()
+     * STEP 1: Pulse the CONVST pin to start the conversion
+     * The pin was configured as GPIO_OUTPUT_INACTIVE (LOW) in init()
      */
     
-    // 1.a: Puxar CONVST para ALTO (ATIVO)
+    // 1.a: Pull CONVST HIGH (ACTIVE)
     gpio_pin_set_dt(&config->convst, 1);
 
-    // 1.b: Esperar pelo tempo de conversão (t_conv-max)
-    //      (O datasheet especifica max 8.3 µs. 9 µs é seguro)
+    // 1.b: Wait for the conversion time (t_conv-max)
+    //      (Datasheet specifies max 8.3 µs. 9 µs is safe)
     k_busy_wait(9); 
 
-    // 1.c: Puxar CONVST para BAIXO (INATIVO) para habilitar a saída DOUT
+    // 1.c: Pull CONVST LOW (INACTIVE) to enable DOUT output
     gpio_pin_set_dt(&config->convst, 0);
 
-    // 1.d: Esperar pelo tempo quieto (t_quiet) antes do SCLK
-    //      (O datasheet especifica min 25 ns. 1 µs é seguro)
+    // 1.d: Wait for the quiet time (t_quiet) before SCLK
+    //      (Datasheet specifies min 25 ns. 1 µs is safe)
     //k_busy_wait(1);
 
     /*
-     * PASSO 2: Agora que a conversão está pronta e DOUT está habilitado,
-     * ler os 16 bits de dados via SPI.
+     * STEP 2: Now that the conversion is ready and DOUT is enabled,
+     * read the 16 bits of data via SPI.
      */
     uint8_t rx_buffer[2];
 
     struct spi_buf rx_buf = {
         .buf = rx_buffer,
-        .len = sizeof(rx_buffer) // Queremos ler 2 bytes
+        .len = sizeof(rx_buffer) // We want to read 2 bytes
     };
     const struct spi_buf_set rx_bufs = {
         .buffers = &rx_buf,
@@ -213,9 +294,9 @@ static int ads8866_read_channel(const struct device *dev, uint16_t *result)
     };
 
     /*
-     * Usar spi_read_dt() para ler os dados.
-     * O driver SPIM (nrf-spim) irá acionar o pino CS (Pino 10)
-     * automaticamente durante esta transação.
+     * Use spi_read_dt() to read the data.
+     * The SPIM driver (nrf-spim) will trigger the CS pin
+     * automatically during this transaction.
      */
     err = spi_read_dt(&config->bus, &rx_bufs);
     if (err) {
@@ -223,14 +304,25 @@ static int ads8866_read_channel(const struct device *dev, uint16_t *result)
         return err;
     }
 
-    /* Converte os 2 bytes recebidos (Big Endian) para uint16_t */
+    /* Converts the 2 received bytes (Big Endian) to uint16_t */
     *result = sys_be16_to_cpu(*((uint16_t *)rx_buffer));
-    *result &= BIT_MASK(ADS8866_RESOLUTION); // Aplica a máscara (0xFFFF)
+    *result &= BIT_MASK(ADS8866_RESOLUTION); // Apply the mask (0xFFFF)
 
     return 0;
 }
 
 
+/**
+ * @brief Main function for the acquisition thread.
+ *
+ * This thread waits on a semaphore. When signaled by adc_context,
+ * it performs the actual hardware read via ads8866_read_channel()
+ * and notifies the context when complete.
+ *
+ * @param p1 Pointer to the device's data structure.
+ * @param p2 Unused.
+ * @param p3 Unused.
+ */
 static void ads8866_acquisition_thread(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p2);
@@ -242,30 +334,44 @@ static void ads8866_acquisition_thread(void *p1, void *p2, void *p3)
 	int err = 0;
 
 	while (true) {
-		/* Espera a permissão para começar a ler */
+		/* Wait for permission to start reading */
 		k_sem_take(&data->sem, K_FOREVER);
 
-		/* O ADS8866 só tem o canal 0, então 'channels' será BIT(0) */
+		/* The ADS8866 only has channel 0, so 'channels' will be BIT(0) */
 		if (data->channels != 0) {
 
-			LOG_DBG("Lendo canal 0");
+			LOG_DBG("Reading channel 0");
 			err = ads8866_read_channel(dev, &result);
 			if (err) {
-				LOG_ERR("Falha ao ler o canal 0 (err %d)", err);
+				LOG_ERR("Failed to read channel 0 (err %d)", err);
 				adc_context_complete(&data->ctx, err);
-				break; /* Aborta em caso de erro */
+				break; /* Abort on error */
 			}
 
-			LOG_DBG("Canal 0, resultado = %d", result);
+			LOG_DBG("Channel 0, result = %d", result);
 
+			/* Place the result in the buffer and advance the pointer */
 			*data->buffer++ = result;
-			data->channels = 0; /* Marca como lido */
+			data->channels = 0; /* Mark as read */
 		}
 
+		/* Notify the adc_context that sampling is done */
 		adc_context_on_sampling_done(&data->ctx, dev);
 	}
 }
 
+/**
+ * @brief Initialization function for the ADS8866 driver.
+ *
+ * This function is called by the kernel at boot time.
+ * It initializes the driver data, checks SPI/GPIO readiness,
+ * and starts the acquisition thread.
+ *
+ * @param dev Pointer to the ADC device instance.
+ *
+ * @return 0 on success.
+ * @return -ENODEV if the SPI or GPIO peripherals are not ready.
+ */
 static int adc_ads8866_init(const struct device *dev)
 {
 	const struct ads8866_config *config = dev->config;
@@ -274,7 +380,7 @@ static int adc_ads8866_init(const struct device *dev)
 	data->dev = dev;
 
 	adc_context_init(&data->ctx);
-	k_sem_init(&data->sem, 0, 1);
+	k_sem_init(&data->sem, 0, 1); /* Init semaphore (0 initial, 1 limit) */
 
 	if (!spi_is_ready_dt(&config->bus)) {
 		LOG_ERR("SPI bus %s not ready", config->bus.bus->name);
@@ -282,13 +388,13 @@ static int adc_ads8866_init(const struct device *dev)
 	}
 
 	if (!gpio_is_ready_dt(&config->convst)) {
-		LOG_ERR("Pino CONVST GPIO não está pronto");
+		LOG_ERR("CONVST GPIO pin is not ready");
 		return -ENODEV;
 	}
-	/* Configura o pino como saída e o define como INATIVO (LOW) */
+	/* Configure the pin as output and set it to INACTIVE (LOW) */
 	gpio_pin_configure_dt(&config->convst, GPIO_OUTPUT_INACTIVE);
 
-	/* O ADS8866 não requer calibração ou configuração na inicialização */
+	/* The ADS8866 does not require calibration or configuration at init */
 
 	k_thread_create(&data->thread, data->stack,
 			K_KERNEL_STACK_SIZEOF(data->stack),
@@ -297,12 +403,14 @@ static int adc_ads8866_init(const struct device *dev)
 
 	adc_context_unlock_unconditionally(&data->ctx);
 
-	LOG_INF("Device %s inicializado.", dev->name);
+	LOG_INF("Device %s initialized.", dev->name);
 
 	return 0;
 }
 
-/* Define a API do driver ADC */
+/**
+ * @brief Defines the ADC driver API structure.
+ */
 static const struct adc_driver_api adc_ads8866_api = {
 	.channel_setup = adc_ads8866_channel_setup,
 	.read = adc_ads8866_read,
@@ -311,12 +419,19 @@ static const struct adc_driver_api adc_ads8866_api = {
 #endif
 };
 
-/* Define a operação SPI: 8 bits, MSB first, Modo 0 (CPOL=0, CPHA=0) */
-/* (Ajuste CPHA/CPOL se o datasheet do ADS8866 exigir) */
+/**
+ * @brief Defines the SPI configuration for the ADS8866.
+ * 8 bits, MSB first, Mode 0 (CPOL=0, CPHA=0).
+ */
 #define ADC_ADS8866_SPI_CFG \
 	(SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB)
 
-/* Macro de inicialização para cada instância do device */
+/**
+ * @brief Macro to initialize a driver instance.
+ *
+ * This macro defines the config and data structures for each
+ * instance of the driver found in the devicetree.
+ */
 #define ADC_ADS8866_INIT(n)                                                   \
     static const struct ads8866_config ads8866_cfg_##n = {                 \
         .bus = SPI_DT_SPEC_INST_GET(n, ADC_ADS8866_SPI_CFG, 0U),       \
@@ -324,7 +439,6 @@ static const struct adc_driver_api adc_ads8866_api = {
 		.convst = GPIO_DT_SPEC_INST_GET(n, convst_gpios),             \
     };                                                                    \
                                                                     \
-                                                                              \
 	static struct ads8866_data ads8866_data_##n = {                       \
 		ADC_CONTEXT_INIT_TIMER(ads8866_data_##n, ctx),                \
 		ADC_CONTEXT_INIT_LOCK(ads8866_data_##n, ctx),                 \
@@ -335,5 +449,5 @@ static const struct adc_driver_api adc_ads8866_api = {
 			      &ads8866_cfg_##n, POST_KERNEL,                  \
 			      CONFIG_ADC_INIT_PRIORITY, &adc_ads8866_api);
 
-/* Itera por todas as instâncias "okay" no devicetree */
+/* Iterates over all "okay" instances in the devicetree and calls INIT */
 DT_INST_FOREACH_STATUS_OKAY(ADC_ADS8866_INIT)

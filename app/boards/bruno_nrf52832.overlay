@@ -1,78 +1,83 @@
 /*
- * Copyright (c) 2024 (Seu Nome)
+ * Copyright (c) 2024 (Your Name)
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 / {
-	zephyr,user {
-		/* Aponta para o canal 0 do nosso device 'my_ads8866' */
-		io-channels = <&my_ads8866 0>;
-	};
+    zephyr,user {
+        /* Points to channel 0 of our 'my_ads8866' device */
+        io-channels = <&my_ads8866 0>;
+    };
 };
 
-/* --- Configuração --- */
-&i2c0 {	status = "disabled";};
-&spi0 {	status = "disabled";};
-&i2c1 {	status = "disabled";};
-&adc { 	status = "disabled";};
+/* --- Configuration --- */
+/* Disable peripherals to avoid conflicts and save power */
+&i2c0 { status = "disabled";};
+&spi0 { status = "disabled";};
+&i2c1 { status = "disabled";};
+&adc {  status = "disabled";}; /* Disable the default nRF ADC */
 
 &spi1 {
-	/*
-	 * Correto: Usando "nrf-spim" (driver moderno)
-	 * para suportar "cs-gpios" e resolver o travamento.
-	 */
-	compatible = "nordic,nrf-spi";
-	status = "okay";
-	pinctrl-0 = <&spi1_default>;
-	pinctrl-1 = <&spi1_sleep>;
-	pinctrl-names = "default", "sleep";
-	cs-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>; /*No modo de 4 fios, conecta em DIN do ADS8866 */
+    /*
+     * Correct: Using "nrf-spim" (modern driver)
+     * to support "cs-gpios" and resolve potential hangs.
+     */
+    compatible = "nordic,nrf-spi"; /* Use the SPI Master driver */
+    status = "okay"; /* Enable the SPI1 peripheral */
+    pinctrl-0 = <&spi1_default>;
+    pinctrl-1 = <&spi1_sleep>;
+    pinctrl-names = "default", "sleep";
+    
+    /* * Define the Chip Select pin as a GPIO.
+     * In 4-wire mode, this connects to DIN on the ADS8866.
+     */
+    cs-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>; 
 
-	/*
-	 * Nó do device alterado para usar o driver custom_ADS8866
-	 */
-	my_ads8866: ads8866@0 {
-		/* Compatível com o binding ti,ADS8866.yaml */
-		compatible = "ti,custom-ads8866";
-		reg = <0>;
-		spi-max-frequency = <1000000>;
+    /*
+     * Device node changed to use the custom_ADS8866 driver
+     */
+    my_ads8866: ads8866@0 {
+        /* Must match the binding ti,ADS8866.yaml */
+        compatible = "ti,custom-ads8866";
+        reg = <0>; /* SPI chip select address */
+        spi-max-frequency = <1000000>; /* 1 MHz SPI clock */
 
-		/* Pino que controla o início da coversão */
-		convst-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>; /* Ou o pino que você conectou */
+        /* Pin that controls the start of conversion */
+        convst-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>; /* Or the pin you connected */
 
-		/* Propriedades padrão do 'adc-controller.yaml' */
-		#address-cells = <1>;
-		#size-cells = <0>;
-		#io-channel-cells = <1>;
+        /* Standard properties from 'adc-controller.yaml' */
+        #address-cells = <1>;
+        #size-cells = <0>;
+        #io-channel-cells = <1>;
 
-		/* Propriedades do canal para o driver custom_ADS8866.c */
-		channel@0 {			
-			reg = <0>;
-			zephyr,resolution = <16>; /* Resolução do ADS8866 */			
-			zephyr,gain = "ADC_GAIN_1"; /* Suportado pelo driver */
-			zephyr,reference = "ADC_REF_EXTERNAL0"; /* Suportado pelo driver */
-			zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>; /* Suportado pelo driver */
-			zephyr,vref-mv = <3300>; /* Tensão de referência externa em mV */
-		};
-	};
+        /* Channel properties for the custom_ADS8866.c driver */
+        channel@0 {       
+            reg = <0>;
+            zephyr,resolution = <16>; /* ADS8866 resolution */            
+            zephyr,gain = "ADC_GAIN_1"; /* Supported by the driver */
+            zephyr,reference = "ADC_REF_EXTERNAL0"; /* Supported by the driver */
+            zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>; /* Supported by the driver */
+            zephyr,vref-mv = <3300>; /* External reference voltage in mV */
+        };
+    };
 };
 
-/* Pinos do SPI1 (SCK, MOSI, MISO) */
+/* Pin control definitions for SPI1 (SCK, MOSI, MISO) */
 &pinctrl {
-	spi1_default: spi1_default {
-		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 0, 11)>,
-					<NRF_PSEL(SPIM_MOSI, 0, 12)>,
-					<NRF_PSEL(SPIM_MISO, 0, 13)>;
-		};
-	};
-	spi1_sleep: spi1_sleep {
-		group1 {
-			psels = <NRF_PSEL(SPIM_SCK, 0, 11)>,
-					<NRF_PSEL(SPIM_MOSI, 0, 12)>,
-					<NRF_PSEL(SPIM_MISO, 0, 13)>;
-			low-power-enable;
-		};
-	};
+    spi1_default: spi1_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 11)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 12)>,
+                    <NRF_PSEL(SPIM_MISO, 0, 13)>;
+        };
+    };
+    spi1_sleep: spi1_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 11)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 12)>,
+                    <NRF_PSEL(SPIM_MISO, 0, 13)>;
+            low-power-enable;
+        };
+    };
 };

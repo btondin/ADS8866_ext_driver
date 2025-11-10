@@ -1,15 +1,14 @@
-# Copyright (c) 2024 (Seu Nome)
+# ADS8866 YAML binding file
 # SPDX-License-Identifier: Apache-2.0
 description: ADS8866 16-bit ADC
 
 compatible: "ti,custom-ads8866"
 
-# Inclui definições padrão (que já definem o child-binding)
+# Includes standard definitions (which already define the child-binding)
 include: [adc-controller.yaml, spi-device.yaml]
 
 on-bus: spi
 
-# child-binding: "zephyr,adc-channel" <-- REMOVA ESTA LINHA (ELA CAUSOU O ERRO)
 
 properties:
   "#io-channel-cells":
