@@ -1,47 +1,47 @@
-# Driver Customizado Zephyr para ADS8866
+# Zephyr Custom Driver for ADS8866
 
-[cite_start]Este projeto é uma implementação de exemplo de um driver "out-of-tree" para o **Zephyr RTOS**, focado em integrar o conversor Analógico-Digital (ADC) de 16 bits **Texas Instruments ADS8866** [cite: 11] com um microcontrolador da Nordic (nRF52832). english
+This project is a sample implementation of an "out-of-tree" driver for the **Zephyr RTOS**, focusing on integrating the **Texas Instruments ADS8866** 16-bit Analog-to-Digital Converter (ADC) with a Nordic microcontroller (nRF52832).
 
-O objetivo principal é demonstrar como criar um módulo de driver customizado que implementa a API ADC padrão do Zephyr, comunicando-se com o sensor através da interface SPI e gerenciando pinos de controle específicos (como o `CONVST`).
+The primary goal is to demonstrate how to create a custom driver module that implements the standard Zephyr ADC API, communicates with the sensor via the SPI interface, and manages specific control pins (like `CONVST`).
 
-## 🎯 Principais Funcionalidades
+## 🎯 Key Features
 
-* **Driver Out-of-Tree:** Implementa a API de driver ADC do Zephyr (`adc_driver_api`) para o ADS8866, permitindo que o `main.c` use funções padrão como `adc_read()` e `adc_raw_to_millivolts_dt()`.
-* [cite_start]**Interface SPI:** Utiliza a API SPIM moderna do Zephyr para comunicação com o ADC[cite: 6].
-* [cite_start]**Controle do Pino CONVST:** Gerencia o pino `CONVST` (início de conversão) via GPIO[cite: 9], conforme exigido pelo datasheet do ADS8866.
-* **Baseado em Devicetree:** Totalmente configurado via Devicetree, incluindo:
-    * [cite_start]Um *binding* customizado (`ti,ADS8866.yaml`)[cite: 8].
-    * [cite_start]Um *overlay* de aplicação (`bruno_nrf52832.overlay`) que habilita o `spi1` e desabilita periféricos conflitantes[cite: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].
-* [cite_start]**Aplicação de Exemplo:** O `main.c` demonstra como inicializar o ADC e ler continuamente os valores brutos e em milivolts[cite: 13].
+* **Out-of-Tree Driver:** Implements the Zephyr ADC driver API (`adc_driver_api`) for the ADS8866, allowing the `main.c` application to use standard functions like `adc_read()` and `adc_raw_to_millivolts_dt()`.
+* **SPI Interface:** Utilizes the modern Zephyr SPIM API for communication with the ADC.
+* [cite_start]**CONVST Pin Control:** Manages the `CONVST` (conversion start) pin via GPIO, as required by the ADS8866 datasheet[cite: 9].
+* **Devicetree Driven:** Fully configured via Devicetree, including:
+    * [cite_start]A custom binding (`ti,ADS8866.yaml`)[cite: 1].
+    * [cite_start]An application overlay (`bruno_nrf52832.overlay`) that enables `spi1` and disables conflicting peripherals[cite: 5, 14].
+* **Sample Application:** The `main.c` file demonstrates how to initialize the ADC and continuously read raw and millivolt values.
 
-## 🛠️ Configuração de Hardware (Pinout)
+## 🛠️ Hardware Setup (Pinout)
 
-Este projeto foi configurado para uma placa nRF52832. A conexão de hardware esperada, conforme definido em `bruno_nrf52832.overlay`, é:
+This project is configured for an nRF52832 board. The expected hardware connection, as defined in `bruno_nrf52832.overlay`, is:
 
-| pino nRF52832 | Função      | Conectar ao pino do ADS8866 |
-| :------------ | :---------- | :------------------------ |
-| `P0.11`       | `SPI1_SCK`  | `SCLK`                    |
-| `P0.12`       | `SPI1_MOSI` | `DIN`                     |
-| `P0.13`       | `SPI1_MISO` | `DOUT`                    |
-| `P0.10`       | `CS` (GPIO) | `CS`                      |
-| `P0.09`       | `CONVST`    | `CONVST`                  |
+| nRF52832 Pin | Function    | Connect to ADS8866 Pin |
+| :----------- | :---------- | :--------------------- |
+| `P0.11`      | `SPI1_SCK`  | [cite_start]`SCLK` [cite: 15]      |
+| `P0.12`      | `SPI1_MOSI` | [cite_start]`DIN` [cite: 15]       |
+| `P0.13`      | `SPI1_MISO` | [cite_start]`DOUT` [cite: 15]      |
+| `P0.10`      | `CS` (GPIO) | [cite_start]`CS` [cite: 7]         |
+| `P0.09`      | `CONVST`    | [cite_start]`CONVST` [cite: 9]     |
 
-[cite_start]**Nota:** O pino `DIN` do ADS8866 é usado como Chip Select (CS) quando operando no modo de 4 fios (CS-controlled), o que é o caso aqui[cite: 7].
+[cite_start]**Note:** The ADS8866's `DIN` pin is used as Chip Select (CS) when operating in 4-wire (CS-controlled) mode, which is the case here[cite: 7].
 
-## 🚀 Como Compilar e Usar
+## 🚀 How to Build and Use
 
-Este projeto é um módulo externo do Zephyr e deve ser posicionado em um local adequado dentro do seu ambiente nRF Connect SDK ou Zephyr.
+This project is a Zephyr external module and should be placed in a suitable location within your nRF Connect SDK or Zephyr environment.
 
-1.  Clone este repositório.
-2.  Certifique-se de que seu ambiente Zephyr está configurado.
-3.  Compile e grave o projeto na sua placa de desenvolvimento (ex: `nrf52832_pca10040`):
+1.  Clone this repository.
+2.  Ensure your Zephyr environment is set up.
+3.  Build and flash the project to your development board (e.g., `nrf52832_pca10040`):
 
     ```bash
     west build -b nrf52832_pca10040
     west flash
     ```
 
-4.  Abra um terminal serial (ex: PuTTY, RealTerm) para ver a saída de log com as leituras do ADC.
+4.  Open a serial terminal (e.g., PuTTY, RealTerm) to view the log output with the ADC readings.
 
     ```
     *** Booting Zephyr OS build v3.5.99-ncs1 ***
@@ -55,18 +55,19 @@ Este projeto é um módulo externo do Zephyr e deve ser posicionado em um local 
     [00:00:01.376,227] <inf> Lesson6_Exercise1: ADC reading[1]: MY_ADS8866@0, channel 0: Raw: 32769
     [00:00:01.376,227] <inf> Lesson6_Exercise1:  = 1650 mV
     ```
+    *(Note: Log messages from `main.c` are in Portuguese as per the source file.)*
 
-## 📂 Estrutura do Projeto
+## 📂 Project Structure
 
-* `/app`: Contém a lógica principal da aplicação (`main.c`).
-* `/custom_driver_module`: O módulo do driver customizado.
-    * `custom_ADS8866.c`: A implementação do driver.
-    * `ti,ADS8866.yaml`: O *binding* do devicetree.
-    * `Kconfig`/`CMakeLists.txt`: Arquivos que definem o driver como um módulo Zephyr.
-* [cite_start]`bruno_nrf52832.overlay`: Arquivo de overlay do Devicetree para configurar os pinos e periféricos da placa[cite: 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].
-* `prj.conf`: Arquivo de configuração Kconfig do projeto.
-* [cite_start]`.gitignore`: Lista de arquivos ignorados pelo Git, otimizado para Zephyr[cite: 1, 2].
+* `/app`: Contains the main application logic (`main.c`).
+* `/custom_driver_module`: The custom driver module.
+    * `custom_ADS8866.c`: The driver implementation.
+    * `ti,ADS8866.yaml`: The devicetree binding.
+    * `Kconfig`/`CMakeLists.txt`: Files that define the driver as a Zephyr module.
+* `bruno_nrf52832.overlay`: The Devicetree overlay file for configuring board pins and peripherals.
+* `prj.conf`: The project's Kconfig configuration file.
+* `.gitignore`: List of files ignored by Git, optimized for Zephyr.
 
-## 📄 Licença
+## 📄 License
 
-Este projeto é licenciado sob a **Licença MIT**. Veja o arquivo `LICENSE.md` para mais detalhes.
+This project is licensed under the **MIT License**. See the `LICENSE.md` file for more details.
