@@ -1,6 +1,6 @@
 # Driver Customizado Zephyr para ADS8866
 
-[cite_start]Este projeto é uma implementação de exemplo de um driver "out-of-tree" para o **Zephyr RTOS**, focado em integrar o conversor Analógico-Digital (ADC) de 16 bits **Texas Instruments ADS8866** [cite: 11] com um microcontrolador da Nordic (nRF52832).
+[cite_start]Este projeto é uma implementação de exemplo de um driver "out-of-tree" para o **Zephyr RTOS**, focado em integrar o conversor Analógico-Digital (ADC) de 16 bits **Texas Instruments ADS8866** [cite: 11] com um microcontrolador da Nordic (nRF52832). english
 
 O objetivo principal é demonstrar como criar um módulo de driver customizado que implementa a API ADC padrão do Zephyr, comunicando-se com o sensor através da interface SPI e gerenciando pinos de controle específicos (como o `CONVST`).
 
