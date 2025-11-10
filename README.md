@@ -8,10 +8,10 @@ The primary goal is to demonstrate how to create a custom driver module that imp
 
 * **Out-of-Tree Driver:** Implements the Zephyr ADC driver API (`adc_driver_api`) for the ADS8866, allowing the `main.c` application to use standard functions like `adc_read()` and `adc_raw_to_millivolts_dt()`.
 * **SPI Interface:** Utilizes the modern Zephyr SPIM API for communication with the ADC.
-* [cite_start]**CONVST Pin Control:** Manages the `CONVST` (conversion start) pin via GPIO, as required by the ADS8866 datasheet[cite: 9].
+* **CONVST Pin Control:** Manages the `CONVST` (conversion start) pin via GPIO, as required by the ADS8866 datasheet.
 * **Devicetree Driven:** Fully configured via Devicetree, including:
-    * [cite_start]A custom binding (`ti,ADS8866.yaml`)[cite: 1].
-    * [cite_start]An application overlay (`bruno_nrf52832.overlay`) that enables `spi1` and disables conflicting peripherals[cite: 5, 14].
+    * A custom binding (`ti,ADS8866.yaml`).
+    * An application overlay (`bruno_nrf52832.overlay`) that enables `spi1` and disables conflicting peripherals.
 * **Sample Application:** The `main.c` file demonstrates how to initialize the ADC and continuously read raw and millivolt values.
 
 ## 🛠️ Hardware Setup (Pinout)
@@ -20,13 +20,13 @@ This project is configured for an nRF52832 board. The expected hardware connecti
 
 | nRF52832 Pin | Function    | Connect to ADS8866 Pin |
 | :----------- | :---------- | :--------------------- |
-| `P0.11`      | `SPI1_SCK`  | [cite_start]`SCLK` [cite: 15]      |
-| `P0.12`      | `SPI1_MOSI` | [cite_start]`DIN` [cite: 15]       |
-| `P0.13`      | `SPI1_MISO` | [cite_start]`DOUT` [cite: 15]      |
-| `P0.10`      | `CS` (GPIO) | [cite_start]`CS` [cite: 7]         |
-| `P0.09`      | `CONVST`    | [cite_start]`CONVST` [cite: 9]     |
+| `P0.11`      | `SPI1_SCK`  | `SCLK`                 |
+| `P0.12`      | `SPI1_MOSI` | `DIN`                  |
+| `P0.13`      | `SPI1_MISO` | `DOUT`                 |
+| `P0.10`      | `CS` (GPIO) | `CS`                   |
+| `P0.09`      | `CONVST`    | `CONVST`               |
 
-[cite_start]**Note:** The ADS8866's `DIN` pin is used as Chip Select (CS) when operating in 4-wire (CS-controlled) mode, which is the case here[cite: 7].
+**Note:** The ADS8866's `DIN` pin is used as Chip Select (CS) when operating in 4-wire (CS-controlled) mode, which is the case here.
 
 ## 🚀 How to Build and Use
 
@@ -45,17 +45,16 @@ This project is a Zephyr external module and should be placed in a suitable loca
 
     ```
     *** Booting Zephyr OS build v3.5.99-ncs1 ***
-    [00:00:00.375,555] <inf> Lesson6_Exercise1: Aplicativo iniciado. Verificando dispositivos...
-    [00:00:00.375,616] <inf> Lesson6_Exercise1: Dispositivo ADC MY_ADS8866@0 pronto.
-    [00:00:00.375,769] <inf> Lesson6_Exercise1: Setup completo. Entrando no loop principal...
-    [00:00:00.375,769] <inf> Lesson6_Exercise1: Tentando ler do ADC...
+    [00:00:00.375,555] <inf> Lesson6_Exercise1: Application started. Checking devices...
+    [00:00:00.375,616] <inf> Lesson6_Exercise1: ADC device MY_ADS8866@0 is ready.
+    [00:00:00.375,769] <inf> Lesson6_Exercise1: Setup complete. Entering main loop...
+    [00:00:00.375,769] <inf> Lesson6_Exercise1: Attempting to read from ADC...
     [00:00:00.375,983] <inf> Lesson6_Exercise1: ADC reading[0]: MY_ADS8866@0, channel 0: Raw: 32768
     [00:00:00.375,983] <inf> Lesson6_Exercise1:  = 1650 mV
-    [00:00:01.376,013] <inf> Lesson6_Exercise1: Tentando ler do ADC...
+    [00:00:01.376,013] <inf> Lesson6_Exercise1: Attempting to read from ADC...
     [00:00:01.376,227] <inf> Lesson6_Exercise1: ADC reading[1]: MY_ADS8866@0, channel 0: Raw: 32769
     [00:00:01.376,227] <inf> Lesson6_Exercise1:  = 1650 mV
     ```
-    *(Note: Log messages from `main.c` are in Portuguese as per the source file.)*
 
 ## 📂 Project Structure
 
