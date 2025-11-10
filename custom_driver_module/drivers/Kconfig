@@ -1,0 +1,6 @@
+# custom_driver_module/drivers/Kconfig
+
+menu "Drivers"
+# Carrega o arquivo Kconfig do nosso driver
+rsource "custom_ADS8866/Kconfig.ads8866"
+endmenu
